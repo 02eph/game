@@ -1,6 +1,6 @@
-
 import sys
 import pygame
+from time import sleep
 from bullet import Bullet
 from alien import Alien
 
@@ -25,7 +25,21 @@ def check_keyup_events(event, ship):
 	elif event.key ==pygame.K_LEFT:
 		ship.moving_left = False
 
-def check_events(ai_settings, screen, ship, bullets):
+def check_play_button(ai_settings, screen, stats, play_button, ship, aliens, bullets, mouse_x, mouse_y):
+    button_clicked = play_button.rect.collidepoint(mouse_x, mouse_y)
+    #if play_button.rect.collidepoint(mouse_x, mouse_y):
+    if button_clicked and not stats.game_active:
+        pygame.mouse.set_visible(False)
+        stats.reset_stats()
+        stats.game_active = True
+
+        aliens.empty()
+        bullets.empty()
+
+        create_fleet(ai_settings, screen, ship, aliens)
+        ship.center_ship()
+
+def check_events(ai_settings, screen, stats, play_button, ship, aliens, bullets):
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
@@ -33,22 +47,69 @@ def check_events(ai_settings, screen, ship, bullets):
             check_keydown_events(event, ai_settings, screen, ship, bullets)
         elif event.type == pygame.KEYUP:
             check_keyup_events(event,ship)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            check_play_button(ai_settings, screen, stats, play_button, ship, aliens, bullets, mouse_x, mouse_y)
 
-def  update_screen(ai_settings, screen, ship, aliens, bullets):
+def check_fleet_edges(ai_settings, aliens):
+    #реагирует на достижение пришельцем края экрана
+    for alien in aliens.sprites():
+        if alien.check_edges():
+            change_fleet_direction(ai_settings, aliens)
+            break
+
+def check_bullet_alien_collisions(ai_settings, screen, ship, aliens, bullets):
+    #при попадании пуль удалить пришельца, коллизия
+    collisions = pygame.sprite.groupcollide(bullets, aliens, True, True)
+    if len(aliens) == 0:
+        #уничтожение существующих пуль и создание нового флота
+        bullets.empty()
+        create_fleet(ai_settings, screen, ship, aliens)
+
+def check_aliens_bottom(ai_settings, stats, screen, ship, aliens, bullets):
+    #проверяет добрались ли пришельцы до нижнего края экрана
+    screen_rect = screen.get_rect()
+    for alien in aliens.sprites():
+        if alien.rect.bottom >= screen_rect.bottom:
+            sheep_hit(ai_settings, stats, screen, ship, aliens, bellets)
+            break
+
+def change_fleet_direction(ai_settings, aliens):
+    #опускает весь флот и меняет направление флота
+    for alien in aliens.sprites():
+        alien.rect.y +=ai_settings.fleet_drop_speed
+    ai_settings.fleet_direction *= -1
+
+
+def  update_screen(ai_settings, screen, stats, ship, aliens, bullets, play_button):
     screen.fill(ai_settings.bg_color)
     for bullet in bullets.sprites():
         bullet.draw_bullet()
     ship.blitme()
     aliens.draw(screen)
+
+    if not stats.game_active:
+        play_button.draw_button()
+
     #отображение последнего прорисованного экрана
     pygame.display.flip()
 
-def update_boolets(bullets):
+def update_boolets(ai_settings, screen, ship, aliens, bullets):
     bullets.update()
     #удаление пуль, вышедших за край экрана
     for bullet in bullets.copy():
         if bullet.rect.bottom <= 0:
             bullets.remove(bullet)
+    check_bullet_alien_collisions(ai_settings, screen, ship, aliens, bullets)
+
+def update_aliens(stats, screen, bullets, ai_settings, ship, aliens):
+    check_fleet_edges(ai_settings, aliens)
+    aliens.update()
+    check_aliens_bottom(ai_settings, stats, screen, ship, aliens, bullets)
+
+    #проверка коллизий "пришелец-корабль"
+    if pygame.sprite.spritecollideany(ship, aliens):
+        ship_hit(ai_settings, stats, screen, ship, aliens, bullets)
 
 def get_number_aliens_x(ai_settings, alien_width):
     available_space_x = ai_settings.screen_width - 2*alien_width
@@ -76,3 +137,20 @@ def create_fleet(ai_settings, screen, ship, aliens):
     for row_number in range(number_rows):
         for alien_number in range(number_aliens_x):
             create_alien(ai_settings, screen, aliens, alien_number, row_number)
+
+def ship_hit(ai_settings, stats, screen, ship, aliens, bullets):
+    #обрабатывает столкновение корабля с пришельцем
+    if stats.ship_left > 0:
+        stats.ship_left -=1
+        #очистка списков пришельцев и пуль
+        aliens.empty()
+        bullets.empty()
+
+        #создание нового флота и размещения корабля в центре
+        create_fleet(ai_settings, screen, ship, aliens)
+        ship.center_ship()
+
+        sleep(0.5)
+    else:
+        stats.game_active = False
+        pygame.mouse.set_visible(True)
