@@ -10,3 +10,12 @@ git clone https://github.com/username/game.git
 ```
 
 To run the game, ensure that you have python3 and pygame library installed in your system.
+
+# then run the game using :
+
+```
+cd path/to/folder/game-m
+python alien_invasion.py                                           
+```
+
+
